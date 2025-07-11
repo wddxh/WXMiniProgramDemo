@@ -26,3 +26,21 @@ function set(action) {
     }
   });
 }
+
+function reverseText() {
+  var text = $("#reverse-input").val();
+  $.ajax("/api/reverse", {
+    method: "POST",
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    data: JSON.stringify({ text: text }),
+  }).done(function (res) {
+    if (res && res.reversed !== undefined) {
+      $("#reverse-result").html(res.reversed);
+    } else {
+      $("#reverse-result").html("出错了");
+    }
+  }).fail(function() {
+    $("#reverse-result").html("出错了");
+  });
+}

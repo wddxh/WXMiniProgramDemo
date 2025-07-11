@@ -15,6 +15,13 @@ public class CounterResponse {
     public int data { get; set; }
 }
 
+public class ReverseRequest {
+    public string text { get; set; }
+}
+public class ReverseResponse {
+    public string reversed { get; set; }
+}
+
 namespace aspnetapp.Controllers
 {
     [Route("api/count")]
@@ -79,6 +86,17 @@ namespace aspnetapp.Controllers
             else {
                 return BadRequest();
             }
+        }
+
+        // POST: api/reverse
+        [HttpPost]
+        [Route("/api/reverse")]
+        public ActionResult<ReverseResponse> ReverseText([FromBody] ReverseRequest req)
+        {
+            if (req == null || req.text == null) return BadRequest();
+            // Reverse the string (character order)
+            var reversed = new string(req.text.Reverse().ToArray());
+            return new ReverseResponse { reversed = reversed };
         }
     }
 }
