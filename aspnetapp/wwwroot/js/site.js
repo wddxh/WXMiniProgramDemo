@@ -50,7 +50,12 @@ var chatHistory = [];
 
 function renderChat() {
   var $history = $("#chat-history");
+  $history.find("#chat-empty-tip").remove();
   $history.empty();
+  if (chatHistory.length === 0) {
+    $history.append('<span id="chat-empty-tip" style="color: #bbb; font-size: 18px; width: 100%; text-align: center;">请开始对话吧~</span>');
+    return;
+  }
   chatHistory.forEach(function(msg) {
     var align = msg.role === 'user' ? 'right' : 'left';
     var bg = msg.role === 'user' ? '#d1f5d3' : '#fff';
@@ -72,17 +77,29 @@ function sendMessage() {
   chatHistory.push({ role: 'user', content: input });
   renderChat();
   $("#send-btn").prop('disabled', true).text('发送中...');
+  var aiTypingIndex = null;
+  var typingTimer = setTimeout(function() {
+    aiTypingIndex = chatHistory.length;
+    chatHistory.push({ role: 'assistant', content: '正在输入中...' });
+    renderChat();
+  }, 1000);
   $.ajax("/api/chat", {
     method: "POST",
     contentType: "application/json; charset=utf-8",
     dataType: "json",
-    data: JSON.stringify({ messages: chatHistory }),
+    data: JSON.stringify({ messages: chatHistory.filter(m => m.content !== '正在输入中...') }),
   }).done(function (res) {
+    clearTimeout(typingTimer);
+    // 如果有“正在输入中...”，先移除
+    if (aiTypingIndex !== null && chatHistory[aiTypingIndex] && chatHistory[aiTypingIndex].content === '正在输入中...') {
+      chatHistory.splice(aiTypingIndex, 1);
+    }
     if (res && res.reply) {
       chatHistory.push({ role: 'assistant', content: res.reply });
       renderChat();
     }
   }).always(function() {
+    clearTimeout(typingTimer);
     $("#send-btn").prop('disabled', false).text('发送');
   });
 }
