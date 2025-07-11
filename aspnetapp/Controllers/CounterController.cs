@@ -62,6 +62,13 @@ namespace aspnetapp.Controllers
                 await _context.SaveChangesAsync();
                 return new CounterResponse { data = counter.count };
             }
+            else if (data.action == "inc2") {
+                var counter = await getCounterWithInit();
+                counter.count += 2;
+                counter.updatedAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+                return new CounterResponse { data = counter.count };
+            }
             else if (data.action == "clear") {
                 var counter = await getCounterWithInit();
                 counter.count = 0;
