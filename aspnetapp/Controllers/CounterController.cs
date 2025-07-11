@@ -31,10 +31,11 @@ public class ChatMessage {
     public string content { get; set; }
 }
 public class ChatRequest {
-    public List<ChatMessage> messages { get; set; }
+    public string message { get; set; }
+    public List<object> history { get; set; }
 }
 public class ChatResponse {
-    public string reply { get; set; }
+    public string response { get; set; }
 }
 
 namespace aspnetapp.Controllers
@@ -119,33 +120,60 @@ namespace aspnetapp.Controllers
         [Route("/api/chat")]
         public async Task<ActionResult<ChatResponse>> Chat([FromBody] ChatRequest req)
         {
-            if (req == null || req.messages == null || req.messages.Count == 0)
+            if (req == null || string.IsNullOrEmpty(req.message))
                 return BadRequest();
+            
             var apiKey = Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
             if (string.IsNullOrEmpty(apiKey))
-                return StatusCode(500, new ChatResponse { reply = "DeepSeek API Key 未配置，请设置环境变量 DEEPSEEK_API_KEY" });
+                return StatusCode(500, new ChatResponse { response = "DeepSeek API Key 未配置，请设置环境变量 DEEPSEEK_API_KEY" });
+            
             try
             {
                 using var http = new HttpClient();
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                
+                // 构建消息历史
+                var messages = new List<object>();
+                
+                // 添加历史消息（如果有的话）
+                if (req.history != null && req.history.Count > 0)
+                {
+                    foreach (var msg in req.history)
+                    {
+                        var msgObj = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(msg));
+                        if (msgObj.TryGetProperty("type", out var typeProp) && 
+                            msgObj.TryGetProperty("content", out var contentProp))
+                        {
+                            var role = typeProp.GetString() == "user" ? "user" : "assistant";
+                            messages.Add(new { role = role, content = contentProp.GetString() });
+                        }
+                    }
+                }
+                
+                // 添加当前用户消息
+                messages.Add(new { role = "user", content = req.message });
+                
                 var payload = new
                 {
-                    model = "deepseek-chat", // 如有具体模型名请替换
-                    messages = req.messages.Select(m => new { role = m.role, content = m.content }).ToList(),
+                    model = "deepseek-chat",
+                    messages = messages,
                     temperature = 0.7
                 };
+                
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
                 var resp = await http.PostAsync("https://api.deepseek.com/v1/chat/completions", content);
                 var respStr = await resp.Content.ReadAsStringAsync();
+                
                 if (!resp.IsSuccessStatusCode)
-                    return StatusCode((int)resp.StatusCode, new ChatResponse { reply = $"DeepSeek API错误: {respStr}" });
+                    return StatusCode((int)resp.StatusCode, new ChatResponse { response = $"DeepSeek API错误: {respStr}" });
+                
                 using var doc = JsonDocument.Parse(respStr);
                 var reply = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-                return new ChatResponse { reply = reply };
+                return new ChatResponse { response = reply };
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ChatResponse { reply = $"DeepSeek API调用异常: {ex.Message}" });
+                return StatusCode(500, new ChatResponse { response = $"DeepSeek API调用异常: {ex.Message}" });
             }
         }
     }
